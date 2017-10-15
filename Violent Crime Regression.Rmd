@@ -1,0 +1,125 @@
+---
+title: "Violent Crime Regression Project"
+author: "Andrew Merz"
+date: "10/14/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+```
+
+# Goals
+Use the [*Communities and Crime Unnormalized Data Set*](https://archive.ics.uci.edu/ml/datasets/Communities+and+Crime+Unnormalized) from the [*UCI Machine Learning Repository*](https://archive.ics.uci.edu/ml/index.php) to complete the following analyses:
+
+* Use descriptive statistics, data visualization, and regression modeling to determine which variables are associated with the violent crime rate in municipalities across the US
+* Use the variables provided to predict violent crime rate in municipalities
+
+# Data
+
+```{r}
+# Read the data and specify variable names from the source website, extracted using Ruby
+header.names = c("communityname", "state", "countyCode", "communityCode", "fold", "population", "householdsize", "racepctblack", "racePctWhite", "racePctAsian", "racePctHisp", "agePct12t21", "agePct12t29", "agePct16t24", "agePct65up", "numbUrban", "pctUrban", "medIncome", "pctWWage", "pctWFarmSelf", "pctWInvInc", "pctWSocSec", "pctWPubAsst", "pctWRetire", "medFamInc", "perCapInc", "whitePerCap", "blackPerCap", "indianPerCap", "AsianPerCap", "OtherPerCap", "HispPerCap", "NumUnderPov", "PctPopUnderPov", "PctLess9thGrade", "PctNotHSGrad", "PctBSorMore", "PctUnemployed", "PctEmploy", "PctEmplManu", "PctEmplProfServ", "PctOccupManu", "PctOccupMgmtProf", "MalePctDivorce", "MalePctNevMarr", "FemalePctDiv", "TotalPctDiv", "PersPerFam", "PctFam2Par", "PctKids2Par", "PctYoungKids2Par", "PctTeen2Par", "PctWorkMomYoungKids", "PctWorkMom", "NumKidsBornNeverMar", "PctKidsBornNeverMar", "NumImmig", "PctImmigRecent", "PctImmigRec5", "PctImmigRec8", "PctImmigRec10", "PctRecentImmig", "PctRecImmig5", "PctRecImmig8", "PctRecImmig10", "PctSpeakEnglOnly", "PctNotSpeakEnglWell", "PctLargHouseFam", "PctLargHouseOccup", "PersPerOccupHous", "PersPerOwnOccHous", "PersPerRentOccHous", "PctPersOwnOccup", "PctPersDenseHous", "PctHousLess3BR", "MedNumBR", "HousVacant", "PctHousOccup", "PctHousOwnOcc", "PctVacantBoarded", "PctVacMore6Mos", "MedYrHousBuilt", "PctHousNoPhone", "PctWOFullPlumb", "OwnOccLowQuart", "OwnOccMedVal", "OwnOccHiQuart", "OwnOccQrange", "RentLowQ", "RentMedian", "RentHighQ", "RentQrange", "MedRent", "MedRentPctHousInc", "MedOwnCostPctInc", "MedOwnCostPctIncNoMtg", "NumInShelters", "NumStreet", "PctForeignBorn", "PctBornSameState", "PctSameHouse85", "PctSameCity85", "PctSameState85", "LemasSwornFT", "LemasSwFTPerPop", "LemasSwFTFieldOps", "LemasSwFTFieldPerPop", "LemasTotalReq", "LemasTotReqPerPop", "PolicReqPerOffic", "PolicPerPop", "RacialMatchCommPol", "PctPolicWhite", "PctPolicBlack", "PctPolicHisp", "PctPolicAsian", "PctPolicMinor", "OfficAssgnDrugUnits", "NumKindsDrugsSeiz", "PolicAveOTWorked", "LandArea", "PopDens", "PctUsePubTrans", "PolicCars", "PolicOperBudg", "LemasPctPolicOnPatr", "LemasGangUnitDeploy", "LemasPctOfficDrugUn", "PolicBudgPerPop", "murders", "murdPerPop", "rapes", "rapesPerPop", "robberies", "robbbPerPop", "assaults", "assaultPerPop", "burglaries", "burglPerPop", "larcenies", "larcPerPop", "autoTheft", "autoTheftPerPop", "arsons", "arsonsPerPop", "ViolentCrimesPerPop", "nonViolPerPop")
+
+df = read.csv("CommViolPredUnnormalizedData.txt", header = FALSE, col.names = header.names, as.is = TRUE)
+```
+
+Begin by investigating the dataset--look at number of rows and columns, data types, and number of missing values, and make sure they are in accord with the specifications given by the [data source](https://archive.ics.uci.edu/ml/datasets/Communities+and+Crime+Unnormalized).
+
+```{r}
+# Dimensions of data
+dim(df)
+```
+
+2,215 rows and 147 columns--in agreement with the source.
+
+```{r}
+# Data types
+table(sapply(df, class))
+sapply(df, class)
+```
+
+Mostly numeric/integer, as expected, with some characters (some of which will not be used in the analysis).
+
+```{r}
+# Number of missing values in each column
+for (col in names(df)) {
+  if (sum(is.na(df[[col]])) > 0) {
+    print(paste0(col, ": ", sum(is.na(df[[col]]))))
+  }
+}
+```
+
+Excellent, no variables with missing values!  (or so I think...)
+
+```{r}
+# Look for other types of missing values in the character columns
+# Tried "", " ", ".", and "?"--"?" is the only character used to indicate a missing value
+char.col = names(df)[sapply(df, class) == "character"]
+for (col in char.col) {
+  if (sum(df[[col]] == "?") > 0) {
+    print(paste0(col, ": ", sum(df[[col]] == "?")))
+  }
+}
+
+nrow(df[(df$PolicBudgPerPop != "?") & (df$ViolentCrimesPerPop != "?"),])
+```
+
+There are many police-related variables that have "?" for the majority of communities--the LEMAS survey must have been conducted on a much smaller number of communities than for which we have demographic data. Since we would lose many potentially useful variables if we only used the variables that would let us use the whole dataset, we will start by looking only at the data points where all of the variables (except for the four non-predictive ones) are defined.
+
+```{r}
+# Get all potentially predictive character columns
+pred.char.col = c()
+for (col in char.col) {
+  if (!any(c("communityname", "countyCode", "communityCode", "fold") == col)) {
+    pred.char.col = c(col, pred.char.col)
+  }
+}
+
+# Select subset where all potentially predictive character columns do not have "?" values
+pd = df[,]
+for (col in pred.char.col) {
+  pd = pd[pd[[col]] != "?",]
+}
+
+# Convert all character predictor variables to numeric
+for (col in pred.char.col) {
+  # v = as.numeric(pd[[col]])
+  # if (sum(is.na(v)) > 0) {  
+  if (col != "state") {
+    # print(paste0(col, ": ", sum(is.na(v))))
+    pd[[col]] = as.numeric(pd[[col]])
+  }
+}
+
+# Collapse states into census regions (West, Midwest, South, Northeast)
+# Don't create a column for Midwest--use that as the reference category
+west <- c("WA", "OR", "CA", "AK", "MT", "ID", "WY", "NV", "UT", "CO", "AZ", "NM", "HI")
+midwest <- c("ND", "SD", "NE", "KS", "MN", "IA", "MO", "WI", "IL", "IN", "MI", "OH")
+south <- c("TX", "OK", "LA", "AR", "MS", "AL", "TN", "KY", "WV", "MD", "DE", "VA", "NC", "SC", "GA", "FL")
+northeast <- c("PA", "NY", "NJ", "CT", "RI", "MA", "VT", "NH", "ME")
+
+pd$west = (pd$state %in% west) * 1
+pd$south = (pd$state %in% south) * 1
+pd$northeast = (pd$state %in% northeast) * 1
+
+# Predictor variables
+pred.var = c("west", "south", "northeast", "population", "householdsize", "racepctblack", "racePctWhite", "racePctAsian", "racePctHisp", "agePct12t21", "agePct12t29", "agePct16t24", "agePct65up", "numbUrban", "pctUrban", "medIncome", "pctWWage", "pctWFarmSelf", "pctWInvInc", "pctWSocSec", "pctWPubAsst", "pctWRetire", "medFamInc", "perCapInc", "whitePerCap", "blackPerCap", "indianPerCap", "AsianPerCap", "OtherPerCap", "HispPerCap", "NumUnderPov", "PctPopUnderPov", "PctLess9thGrade", "PctNotHSGrad", "PctBSorMore", "PctUnemployed", "PctEmploy", "PctEmplManu", "PctEmplProfServ", "PctOccupManu", "PctOccupMgmtProf", "MalePctDivorce", "MalePctNevMarr", "FemalePctDiv", "TotalPctDiv", "PersPerFam", "PctFam2Par", "PctKids2Par", "PctYoungKids2Par", "PctTeen2Par", "PctWorkMomYoungKids", "PctWorkMom", "NumKidsBornNeverMar", "PctKidsBornNeverMar", "NumImmig", "PctImmigRecent", "PctImmigRec5", "PctImmigRec8", "PctImmigRec10", "PctRecentImmig", "PctRecImmig5", "PctRecImmig8", "PctRecImmig10", "PctSpeakEnglOnly", "PctNotSpeakEnglWell", "PctLargHouseFam", "PctLargHouseOccup", "PersPerOccupHous", "PersPerOwnOccHous", "PersPerRentOccHous", "PctPersOwnOccup", "PctPersDenseHous", "PctHousLess3BR", "MedNumBR", "HousVacant", "PctHousOccup", "PctHousOwnOcc", "PctVacantBoarded", "PctVacMore6Mos", "MedYrHousBuilt", "PctHousNoPhone", "PctWOFullPlumb", "OwnOccLowQuart", "OwnOccMedVal", "OwnOccHiQuart", "OwnOccQrange", "RentLowQ", "RentMedian", "RentHighQ", "RentQrange", "MedRent", "MedRentPctHousInc", "MedOwnCostPctInc", "MedOwnCostPctIncNoMtg", "NumInShelters", "NumStreet", "PctForeignBorn", "PctBornSameState", "PctSameHouse85", "PctSameCity85", "PctSameState85", "LemasSwornFT", "LemasSwFTPerPop", "LemasSwFTFieldOps", "LemasSwFTFieldPerPop", "LemasTotalReq", "LemasTotReqPerPop", "PolicReqPerOffic", "PolicPerPop", "RacialMatchCommPol", "PctPolicWhite", "PctPolicBlack", "PctPolicHisp", "PctPolicAsian", "PctPolicMinor", "OfficAssgnDrugUnits", "NumKindsDrugsSeiz", "PolicAveOTWorked", "LandArea", "PopDens", "PctUsePubTrans", "PolicCars", "PolicOperBudg", "LemasPctPolicOnPatr", "LemasGangUnitDeploy", "LemasPctOfficDrugUn", "PolicBudgPerPop")
+
+length(pred.var)
+```
+
+So, after creating census region dummy variables to indicate geographic region, have 127 unique predictor variables.
+
+
+# Inferential Modeling
+
+
+# Predicting Violent Crime Rate
+
+Since we have a large number of predictor variables, we will need to use model selection techniques and/or regularization to prevent over-fitting.
+
+However, since $n < p$, we can still use a regular least squares regression model. 
+
+Least squares fits a model to the data of the form: Yhat = b0 + b1X1 + b2X2 + ... + bpXp, where Yhat is the predicted response (dependent variable), X1,...,Xp are the predictor variables (independent variables), b0 is the intercept (Yhat when all of the X's are 0), and b1, ..., bp are the coefficients for each predictor.  Any given coefficient, say b1, can be interpreted as the change in Yhat for a 1-unit change in the predictor variable is is multiplied by (in this case, X1).  
